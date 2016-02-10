@@ -177,7 +177,7 @@ options:
     type: float
     version_added: 2.3
 
-requirements: [ gentoolkit ]
+requirements: [ portage ]
 author:
     - "William L Thomson Jr (@wltjr)"
     - "Yap Sok Ann (@sayap)"
@@ -233,7 +233,13 @@ EXAMPLES = '''
 import os
 import pipes
 import re
+import sys
 
+try:
+    import portage
+    import portage.emaint.modules.sync.sync
+except ImportError:
+    sys.exit(1)
 
 def query_package(module, package, action):
     if package.startswith('@'):
@@ -242,10 +248,8 @@ def query_package(module, package, action):
 
 
 def query_atom(module, atom, action):
-    cmd = '%s list %s' % (module.equery_path, atom)
-
-    rc, out, err = module.run_command(cmd)
-    return rc == 0
+    installed = portage.vartree().dbapi.match(atom)
+    return bool(installed)
 
 
 def query_set(module, set, action):
@@ -265,29 +269,20 @@ def query_set(module, set, action):
             module.fail_json(msg='set %s cannot be removed' % set)
         return False
 
-    world_sets_path = '/var/lib/portage/world_sets'
-    if not os.path.exists(world_sets_path):
-        return False
+    world_sets_path = os.path.join(portage.root, portage.const.WORLD_SETS_FILE)
+    with open(world_sets_path) as world_sets:
+        for world_set in world_sets:
+            if set in world_set:
+                return True
 
-    cmd = 'grep %s %s' % (set, world_sets_path)
-
-    rc, out, err = module.run_command(cmd)
-    return rc == 0
-
+    return False
 
 def sync_repositories(module, webrsync=False):
     if module.check_mode:
         module.exit_json(msg='check mode not supported by sync')
 
-    if webrsync:
-        webrsync_path = module.get_bin_path('emerge-webrsync', required=True)
-        cmd = '%s --quiet' % webrsync_path
-    else:
-        cmd = '%s --sync --quiet --ask=n' % module.emerge_path
-
-    rc, out, err = module.run_command(cmd)
-    if rc != 0:
-        module.fail_json(msg='could not sync package repositories')
+    sync_repos = portage.emaint.modules.sync.sync.SyncRepos()
+    return sync_repos.auto_sync()
 
 
 # Note: In the 3 functions below, equery is done one-by-one, but emerge is done
@@ -486,7 +481,6 @@ def main():
     )
 
     module.emerge_path = module.get_bin_path('emerge', required=True)
-    module.equery_path = module.get_bin_path('equery', required=True)
 
     p = module.params
 
