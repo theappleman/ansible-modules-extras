@@ -132,11 +132,10 @@ options:
   sync:
     description:
       - Sync package repositories first
-      - If yes, perform "emerge --sync"
-      - If web, perform "emerge-webrsync"
+      - If yes, perform "emaint sync -a"
     required: false
     default: null
-    choices: [ "yes", "web", "no" ]
+    choices: [ "yes", "no" ]
 
   getbinpkg:
     description:
@@ -277,7 +276,7 @@ def query_set(module, set, action):
 
     return False
 
-def sync_repositories(module, webrsync=False):
+def sync_repositories(module):
     if module.check_mode:
         module.exit_json(msg='check mode not supported by sync')
 
@@ -467,7 +466,7 @@ def main():
             depclean=dict(default=False, type='bool'),
             quiet=dict(default=False, type='bool'),
             verbose=dict(default=False, type='bool'),
-            sync=dict(default=None, choices=['yes', 'web']),
+            sync=dict(default=False, type='bool'),
             getbinpkg=dict(default=False, type='bool'),
             usepkgonly=dict(default=False, type='bool'),
             usepkg=dict(default=False, type='bool'),
@@ -485,7 +484,7 @@ def main():
     p = module.params
 
     if p['sync']:
-        sync_repositories(module, webrsync=(p['sync'] == 'web'))
+        sync_repositories(module)
         if not p['package']:
             module.exit_json(msg='Sync successfully finished.')
 
